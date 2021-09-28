@@ -292,25 +292,34 @@ export const Dashboard = () => {
         console.log("vector id languages")
         console.log(languageId);
         try {
-            for (let index = 0; index < languageId.length; index++) {
-                const element : any = languageId[index];
-                const deleteLang = await fetch(`http://challenge.radlena.com/api/v1/professional-languages/${element.id}`, {
-                method: 'DELETE'
-                });
-
-                if (deleteLang.ok && index === languageId.length - 1) {
-                    const deleteProf = await fetch(`http://challenge.radlena.com/api/v1/professionals/${professionalSelected.id}`, {
-                        method: 'DELETE'
-                    })
-                    if(deleteProf.ok) {
-                        Swal.fire({
-                            position: 'center',
-                            icon: 'success',
-                            title: 'Borrado Exitoso',
-                            showConfirmButton: false
-                          });
+            if(languageId.length > 0) {
+                for (let index = 0; index < languageId.length; index++) {
+                    const element : any = languageId[index];
+                    const deleteLang = await fetch(`http://challenge.radlena.com/api/v1/professional-languages/${element.id}`, {
+                    method: 'DELETE'
+                    });
+    
+                    if (deleteLang.ok && index === languageId.length - 1) {
+                        const deleteProf = await fetch(`http://challenge.radlena.com/api/v1/professionals/${professionalSelected.id}`, {
+                            method: 'DELETE'
+                        })
+                        if(deleteProf.ok) {
+                            Swal.fire({
+                                position: 'center',
+                                icon: 'success',
+                                title: 'Borrado Exitoso',
+                                showConfirmButton: false
+                              });
+                        }
+                        else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Algo salio mal',
+                            });
+                        }
                     }
-                    else {
+                    else if(!deleteLang.ok && index === languageId.length - 1) {
                         Swal.fire({
                             icon: 'error',
                             title: 'Error',
@@ -318,14 +327,15 @@ export const Dashboard = () => {
                         });
                     }
                 }
-                else if(!deleteLang.ok && index === languageId.length - 1) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Algo salio mal',
-                    });
-                }
-            } 
+            }
+            else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'El Profesional no tiene lenguajes y no puede ser borrado',
+                });
+            }
+             
         } catch (error) {
             Swal.fire({
                 icon: 'error',
