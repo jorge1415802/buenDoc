@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Input, Form, Button, Select, Alert } from 'antd';
 import { useForm } from '../../hooks/useForm';
 import { useLanguages } from '../../hooks/useLanguages';
-import { Redirect } from 'react-router'
+import { useHistory } from 'react-router'
 import Swal from 'sweetalert2'
 
 
@@ -15,71 +15,87 @@ export const CreateDoctor = () => {
         last_name: '',
         // languages: []
     })
-    const [profile_image,setProfileImage] = useState();
-    const [languages,setLanguages] : any = useState([]);
+    const [profile_image, setProfileImage]: any = useState();
+    const [fileUrl, setFileUrl]: any = useState();
+    const [displayImage, setDisplayImage] = useState('none');
+    const [languages, setLanguages]: any = useState([]);
     const { first_name, email, last_name } = state;
     const { Option } = Select;
+    let history = useHistory();
 
     const query = useLanguages();
 
-    if(query.isError) {
+    if (query.isError) {
         return (
             <Alert message="Error cargando los lenguajes" type="error" />
         )
     }
 
-    const children : any[] = [];
-    query.data?.map((child : any)=> {
+    const children: any[] = [];
+    query.data?.map((child: any) => {
         return children.push(<Option key={child.id} value={child.id}>{child.name}</Option>)
     });
 
-    function handleChange(value : any) {
+    function handleChange(value: any) {
         setLanguages([
             ...value
         ])
     }
 
-    const handleFile = ({target} : {target : any}) => {
+    const handleFile = ({ target }: { target: any }) => {
+        console.log(target.files[0])
+        const imageUrl = URL.createObjectURL(target.files[0]);
         setProfileImage(target.files[0]);
-    } 
+        setFileUrl(imageUrl);
+        setDisplayImage('block')
+    }
 
-    const newDoctor = async() => {
+    const newDoctor = async () => {
+        let res: any;
+        let msg : any;
+        let formData = new FormData();
+        const { first_name, email, last_name } = state
+        formData.append('profile_image', profile_image!);
+        formData.append('first_name', first_name);
+        formData.append('email', email);
+        formData.append('last_name', last_name)
+        console.log(profile_image)
+        res = await fetch('http://challenge.radlena.com/api/v1/professionals/', {
+            method: 'POST',
+            body: formData
+        })
+        const rest = res.json();
+        let result =  await rest;
+        if(result.email) msg = result.email[0];
+        else msg = result.non_field_errors[0];
         try {
-            let formData = new FormData();
-            const { first_name, email, last_name } = state
-            formData.append('profile_image',profile_image!);
-            formData.append('first_name',first_name);
-            formData.append('email',email);
-            formData.append('last_name',last_name)
-            console.log(profile_image)
-            const res = await fetch('http://challenge.radlena.com/api/v1/professionals/',{
-                method: 'POST',
-                body : formData
-            })
-            if(res.ok) {
-                return res.json();
+            if (res.ok) {
+                return rest;
             }
             else {
+                console.log("entro en else");
+                console.log(result)
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: 'Algo salio mal',
+                    text: `${msg}`,
                 });
             }
-            
+
         } catch (error) {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Algo salio mal',
+                text: `${msg}`,
             });
         }
-        
+
     }
 
-    const newDoctorLanguages = async(doctor : any) => {
+    const newDoctorLanguages = async (doctor: any) => {
+        let rest: any;
         try {
-            let lang : any[] = []
+            let lang: any[] = []
             for (let index = 0; index < languages.length; index++) {
                 const element = languages[index];
                 lang.push(query.data.find((lang: any) => lang.id === element));
@@ -89,44 +105,44 @@ export const CreateDoctor = () => {
                 const element = lang[index];
                 const { first_name, email, last_name, id } = doctor;
                 const data = {
-                    professional : {
+                    professional: {
                         first_name,
                         last_name,
                         email
                     },
                     professional_id: id,
-                    language : {
-                        name : element.name,
-                        code : element.code,
-                        is_active : element.is_active,
+                    language: {
+                        name: element.name,
+                        code: element.code,
+                        is_active: element.is_active,
                     },
-                    language_id : element.id
+                    language_id: element.id
                 }
-                const rest = await fetch('http://challenge.radlena.com/api/v1/professional-languages/',{
+                rest = await fetch('http://challenge.radlena.com/api/v1/professional-languages/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body : JSON.stringify(data)
+                    body: JSON.stringify(data)
                 })
-                if(rest.ok && index === lang.length - 1) {
+                if (rest.ok && index === lang.length - 1) {
                     Swal.fire({
                         position: 'center',
                         icon: 'success',
                         title: 'Creacion exitosa',
                         showConfirmButton: true,
 
-                      }).then((result) => {
-                          if(result.isConfirmed)  {
-                          <Redirect to='/dashboard' />
-                          }
-                      })
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            history.push('/dashboard');
+                        }
+                    })
                 }
-                else {
+                else if (!rest.ok) {
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: 'Algo salio mal',
+                        text: `${rest}`
                     });
                 }
             }
@@ -134,7 +150,7 @@ export const CreateDoctor = () => {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Algo salio mal',
+                text: `${rest}`
             });
         }
     }
@@ -144,8 +160,9 @@ export const CreateDoctor = () => {
             await form.validateFields();
             console.log('todo ok');
             const doct = await newDoctor();
-            await newDoctorLanguages(doct);
+            if(doct) await newDoctorLanguages(doct);
             
+
         } catch (error) {
             console.log('todo mal');
             console.log(error);
@@ -196,6 +213,7 @@ export const CreateDoctor = () => {
                     >
                         <Input size="large" placeholder="Email" name="email" autoComplete="off" value={email} onChange={handleInputChange} />
                     </Form.Item>
+                    <img src={fileUrl} alt={profile_image?.name} className='form-control' style={{ display: displayImage, width: '20%' }} />
                     <label htmlFor="Url">Url Imagen</label>
                     <Form.Item
                         name="profile_image"

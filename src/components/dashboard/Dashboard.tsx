@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Table, Spin, Space, Modal, Form, Input, Select } from 'antd';
 import { useQuery } from 'react-query';
 import { useForm } from '../../hooks/useForm';
@@ -19,6 +19,7 @@ export const Dashboard = () => {
         is_active: boolean,
     }
 
+
     const [state1, setState] = useState({
         isModalVisible: false,
         selected: false,
@@ -29,16 +30,22 @@ export const Dashboard = () => {
     const [state, handleInputChange] = useForm({
         first_name: '',
         email: '',
-        last_name: '',
+        last_name: ''
 
     })
-    const [profile_image, setProfileImage] = useState();
+    const [profile_image, setProfileImage] : any = useState();
     const [languages, setLanguages]: any = useState([]);
+    const [imageUrl, setImageUrl]  : any = useState()
     const [languageId, setLanguageId] : any = useState([]);
+    const [defaultSelect,setDefaultSelect] : any = useState([]);
+    const defaultValueSelect : any[] = [];
     const { Option } = Select;
 
+    
+   
     const query4 = useLanguages();
 
+    
     const children: any[] = [];
     query4.data?.map((child: any) => {
         return children.push(<Option key={child.id} value={child.id}>{child.name}</Option>)
@@ -48,6 +55,9 @@ export const Dashboard = () => {
 
     const { isModalVisible, selected, professionalSelected }: { isModalVisible: boolean, selected: boolean, professionalSelected: any } = state1;
     const { first_name, email, last_name } = state;
+
+    
+
     const doctors = async () => {
         try {
             const result: any = await fetch('http://challenge.radlena.com/api/v1/professionals/');
@@ -80,6 +90,21 @@ export const Dashboard = () => {
     const query = useQuery('DOCTORS', doctors);
     const query2 = useQuery('MOREDOCTORS', moreDoctors);
     const query3 = useQuery('LANGUAGESDOCTOR', getLanguagesDoctor);
+
+    useEffect(() => {
+        
+        const data : any[] = query3.data?.filter((item: any) => item.professional.id === professionalSelected.id)
+            data?.map((item: any) => {
+                return defaultSelect.push(item.language?.id)
+            })
+
+            setDefaultSelect(defaultValueSelect);
+            console.log(defaultSelect)
+    }, [professionalSelected])
+
+    // useMemo(() => useEffect, [defaultSelect])
+
+
     const dataSource: Professionals[] = [];
     query.data?.results.map((res: Professionals) => {
         const data = {
@@ -115,6 +140,7 @@ export const Dashboard = () => {
     }
 
     const showModal = () => {
+        console.log(defaultSelect)
         if (selected) {
             console.log("entro a if")
             setState({
@@ -136,11 +162,19 @@ export const Dashboard = () => {
             ...state1,
             isModalVisible: false
         })
-        console.log(state1);
+    }
+
+    const  handleCancel = () => {
+        setState({
+            ...state1,
+            isModalVisible: false
+        })
     }
 
     const handleFile = ({ target }: { target: any }) => {
         setProfileImage(target.files[0]);
+        const url = URL.createObjectURL(target.files[0]);
+        setImageUrl(url)
     }
 
     function handleChange(value: any) {
@@ -165,6 +199,9 @@ export const Dashboard = () => {
 
     }
 
+    
+    
+
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[], selectedRows: Professionals[]) => {
             setState({
@@ -172,14 +209,22 @@ export const Dashboard = () => {
                 selected: true,
                 professionalSelected: selectedRows[0]
             });
+            
             console.log(`selectedRowKeys: ${selectedRowKeys}`, 'selectedRows: ', selectedRows);
+            // dataForm();
+            
             form.setFieldsValue({
                 first_name: selectedRows[0].first_name,
                 email: selectedRows[0].email,
                 last_name: selectedRows[0].last_name,
-                // profile_image : selectedRows[0].profile_image
+                profile_image : null,
+                languageId : defaultSelect
             })
-            dataForm();
+            
+            
+            setImageUrl(selectedRows[0].profile_image)
+            console.log("image url")
+            console.log(imageUrl)
         },
         getCheckboxProps: (record: Professionals) => ({
             disabled: record.first_name === 'Disabled User', // Column configuration not to be checked
@@ -187,13 +232,16 @@ export const Dashboard = () => {
         }),
     };
 
+    
+
+
     const editDoctor = async () => {
         try {
             const formData = new FormData();
-            formData.append('first_name', first_name);
-            formData.append('last_name', last_name);
-            formData.append('email', email);
-            formData.append('profile_image', profile_image!);
+            // formData.append('first_name', first_name);
+            // formData.append('last_name', last_name);
+            // formData.append('email', email);
+            // formData.append('profile_image', profile_image!);
 
             if (!first_name) formData.append('first_name', professionalSelected.first_name);
             if (!last_name) formData.append('last_name', professionalSelected.last_name);
@@ -202,6 +250,9 @@ export const Dashboard = () => {
 
             await fetch(`http://challenge.radlena.com/api/v1/professionals/${professionalSelected.id}/`, {
                 method: 'PATCH',
+                headers : {
+                    'Content-Type': 'multipart/form-data',
+                },
                 body: formData
             })
             await createLanguages();
@@ -215,53 +266,57 @@ export const Dashboard = () => {
     const  createLanguages = async() => {
         try {
             console.log(languages)
-            let lang : any[] = []
-            for (let index = 0; index < languages.length; index++) {
-                const element = languages[index];
-                lang.push(query4.data.find((lang: any) => lang.id === element));
-            }
-            console.log(lang);
-            for (let index = 0; index < lang.length; index++) {
-                const element = lang[index];
-                const { first_name, email, last_name, id } = professionalSelected;
-                const data = {
-                    professional : {
-                        first_name,
-                        last_name,
-                        email
-                    },
-                    professional_id: id,
-                    language : {
-                        name : element.name,
-                        code : element.code,
-                        is_active : element.is_active,
-                    },
-                    language_id : element.id
-                }
-                const rest = await fetch('http://challenge.radlena.com/api/v1/professional-languages/',{
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body : JSON.stringify(data)
-                })
-                if(rest.ok && index === lang.length -1 ) {
-                    Swal.fire({
-                        position: 'center',
-                        icon: 'success',
-                        title: 'Modificacion exitosa',
-                        showConfirmButton: false
-                      });
-                }
-                else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Algo salio mal',
-                    });
-                }
-            }
-            <Redirect to='/dashboard'/>
+           
+            // if(languages.length > languageId.length) {
+            //     let lang : any[] = []
+            //     for (let index = 0; index < languages.length; index++) {
+            //         const element = languages[index];
+            //         lang.push(query4.data.find((lang: any) => lang.id === element));
+            //     }
+            // }
+            
+            // console.log(lang);
+            // for (let index = 0; index < lang.length; index++) {
+            //     const element = lang[index];
+            //     const { first_name, email, last_name, id } = professionalSelected;
+            //     const data = {
+            //         professional : {
+            //             first_name,
+            //             last_name,
+            //             email
+            //         },
+            //         professional_id: id,
+            //         language : {
+            //             name : element.name,
+            //             code : element.code,
+            //             is_active : element.is_active,
+            //         },
+            //         language_id : element.id
+            //     }
+            //     const rest = await fetch('http://challenge.radlena.com/api/v1/professional-languages/',{
+            //         method: 'POST',
+            //         headers: {
+            //             'Content-Type': 'application/json',
+            //         },
+            //         body : JSON.stringify(data)
+            //     })
+            //     if(rest.ok && index === lang.length -1 ) {
+            //         Swal.fire({
+            //             position: 'center',
+            //             icon: 'success',
+            //             title: 'Modificacion exitosa',
+            //             showConfirmButton: false
+            //           });
+            //     }
+            //     else {
+            //         Swal.fire({
+            //             icon: 'error',
+            //             title: 'Error',
+            //             text: 'Algo salio mal',
+            //         });
+            //     }
+            // }
+            // <Redirect to='/dashboard'/>
         } catch (error) {
             Swal.fire({
                 icon: 'error',
@@ -292,49 +347,57 @@ export const Dashboard = () => {
         console.log("vector id languages")
         console.log(languageId);
         try {
-            if(languageId.length > 0) {
-                for (let index = 0; index < languageId.length; index++) {
-                    const element : any = languageId[index];
-                    const deleteLang = await fetch(`http://challenge.radlena.com/api/v1/professional-languages/${element.id}`, {
-                    method: 'DELETE'
-                    });
-    
-                    if (deleteLang.ok && index === languageId.length - 1) {
-                        const deleteProf = await fetch(`http://challenge.radlena.com/api/v1/professionals/${professionalSelected.id}`, {
-                            method: 'DELETE'
-                        })
-                        if(deleteProf.ok) {
-                            Swal.fire({
-                                position: 'center',
-                                icon: 'success',
-                                title: 'Borrado Exitoso',
-                                showConfirmButton: false
-                              });
-                        }
-                        else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: 'Algo salio mal',
-                            });
-                        }
-                    }
-                    else if(!deleteLang.ok && index === languageId.length - 1) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Algo salio mal',
-                        });
-                    }
-                }
+            const deleteProf = await fetch(`http://challenge.radlena.com/api/v1/professionals/${professionalSelected.id}`, {
+                method: 'DELETE'
+            })
+
+            if(deleteProf.ok) {
+                Swal.fire({
+                    position: 'center',
+                    icon: 'success',
+                    title: 'Borrado Exitoso',
+                    showConfirmButton: true
+                  }).then((result) => {
+                      if(result.isConfirmed) {
+                        query.refetch();
+                        query2.refetch();
+                      }
+                  });
             }
             else {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: 'El Profesional no tiene lenguajes y no puede ser borrado',
+                    text: `${deleteProf}`
                 });
             }
+            // if(languageId.length > 0) {
+            //     for (let index = 0; index < languageId.length; index++) {
+            //         const element : any = languageId[index];
+            //         const deleteLang = await fetch(`http://challenge.radlena.com/api/v1/professional-languages/${element.id}`, {
+            //         method: 'DELETE'
+            //         });
+    
+            //         if (deleteLang.ok && index === languageId.length - 1) {
+                        
+                        
+            //         }
+            //         else if(!deleteLang.ok && index === languageId.length - 1) {
+            //             Swal.fire({
+            //                 icon: 'error',
+            //                 title: 'Error',
+            //                 text: 'Algo salio mal',
+            //             });
+            //         }
+            //     }
+            // }
+            // else {
+            //     Swal.fire({
+            //         icon: 'error',
+            //         title: 'Error',
+            //         text: 'El Profesional no tiene lenguajes y no puede ser borrado',
+            //     });
+            // }
              
         } catch (error) {
             Swal.fire({
@@ -349,9 +412,15 @@ export const Dashboard = () => {
 
     const columns = [
         {
-            title: 'Nombre',
-            dataIndex: 'first_name',
-            key: 'first_name'
+            title: 'Avatar',
+            dataIndex: 'profile_image',
+            key: 'profile_image',
+            render : (profile_image : any) => <img style={{width: '4%'}} src={profile_image} alt={profile_image} />
+        },
+        {
+            title : 'Nombre',
+            dataIndex : 'first_name',
+            key : 'first_name'
         },
         {
             title: 'Apellido',
@@ -380,7 +449,7 @@ export const Dashboard = () => {
                     </div>
                 </div>
                 <br />
-                <Modal title="Editar Profesional" width={800} visible={isModalVisible} onOk={handleOk}>
+                <Modal title="Editar Profesional" width={800} visible={isModalVisible} onOk={handleOk} onCancel={handleCancel}>
                     <Form form={form} encType="multipart/form">
                         <label htmlFor="Nombre">Nombre</label>
                         <Form.Item
@@ -420,29 +489,24 @@ export const Dashboard = () => {
                         </Form.Item>
                         <label htmlFor="Url">Url Imagen</label>
                         <Form.Item
+                            name='imageUrl'
+                        >
+                        <img src={imageUrl} alt={imageUrl} className='form-control' style={{ width: '20%' }} />    
+                        </Form.Item>
+                        
+                        <Form.Item
                             name="profile_image"
-                            rules={[
-                                {
-                                    required: true,
-                                    message: 'La url de la imagen es obligatoria'
-                                }
-                            ]}
                         >
                             <Input type="file" size="large" placeholder="Url" name="profile_image" autoComplete="off" value={profile_image} onChange={handleFile} />
                         </Form.Item>
                         <label htmlFor="Languages">Lenguajes</label>
                         <Form.Item
-                            name="languages"
-                            rules={[
-                                {
-                                    required: true,
-                                    message: 'Es necesario seleccionar un lenguaje'
-                                }
-                            ]}
-                        >
+                            name="languageId"
+                            >
                             <Select
                                 mode="multiple"
                                 allowClear
+                                // defaultValue={languageId}
                                 style={{ width: '100%' }}
                                 placeholder="Selecciona un lenguaje"
                                 onChange={handleChange}
@@ -450,6 +514,7 @@ export const Dashboard = () => {
                                 {children}
                             </Select>
                         </Form.Item>
+                            
                         <Form.Item>
                             <Button type="primary" onClick={verify}>
                                 Guardar
